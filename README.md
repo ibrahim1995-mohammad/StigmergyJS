@@ -1,5 +1,5 @@
 Ant Colony — Swarm Intelligence Simulation
-
+![Ant Colony Simulation](1773787615854.jpg)
 
 
 ![demo](assets/preview.gif)

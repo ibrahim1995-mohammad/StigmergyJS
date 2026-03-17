@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ant Colony — Swarm Intelligence Simulation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;600;700;900&display=swap');
+
+  :root {
+    --soil-dark: #1a0f08;
+    --soil-mid: #2d1a0e;
+    --soil-light: #3d2515;
+    --amber: #e8a04a;
+    --amber-bright: #ffcc66;
+    --pheromone-food: #44ff88;
+    --pheromone-home: #4488ff;
+    --ant-worker: #c8723a;
+    --ant-soldier: #8b3a1a;
+    --ant-queen: #ffd700;
+    --food-color: #66dd44;
+    --nest-color: #8b5a2b;
+    --text: #f0d090;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--soil-dark);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 10px 20px;
+    background: linear-gradient(180deg, #0d0703 0%, transparent 100%);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    position: relative;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: var(--amber-bright);
+    text-shadow: 0 0 20px rgba(232, 160, 74, 0.6);
+  }
+
+  h1 span { color: var(--pheromone-food); font-size: 1rem; }
+
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.05);
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(232,160,74,0.2);
+  }
+
+  .stat-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: crosshair;
+  }
+
+  .controls {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    z-index: 20;
+    background: rgba(10,5,2,0.85);
+    padding: 10px 16px;
+    border-radius: 30px;
+    border: 1px solid rgba(232,160,74,0.25);
+    backdrop-filter: blur(10px);
+  }
+
+  button {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .btn-food {
+    background: rgba(68,255,136,0.15);
+    color: var(--pheromone-food);
+    border: 1px solid rgba(68,255,136,0.4);
+  }
+  .btn-food:hover { background: rgba(68,255,136,0.3); transform: scale(1.05); }
+  .btn-food.active { background: rgba(68,255,136,0.4); box-shadow: 0 0 12px rgba(68,255,136,0.5); }
+
+  .btn-speed {
+    background: rgba(232,160,74,0.15);
+    color: var(--amber);
+    border: 1px solid rgba(232,160,74,0.4);
+  }
+  .btn-speed:hover { background: rgba(232,160,74,0.3); transform: scale(1.05); }
+
+  .btn-pause {
+    background: rgba(255,100,100,0.15);
+    color: #ff8888;
+    border: 1px solid rgba(255,100,100,0.4);
+  }
+  .btn-pause:hover { background: rgba(255,100,100,0.3); transform: scale(1.05); }
+
+  .btn-pheromone {
+    background: rgba(68,136,255,0.15);
+    color: var(--pheromone-home);
+    border: 1px solid rgba(68,136,255,0.4);
+  }
+  .btn-pheromone:hover { background: rgba(68,136,255,0.3); transform: scale(1.05); }
+  .btn-pheromone.active { background: rgba(68,136,255,0.4); box-shadow: 0 0 12px rgba(68,136,255,0.5); }
+
+  .legend {
+    position: absolute;
+    top: 12px;
+    left: 16px;
+    font-size: 0.7rem;
+    background: rgba(10,5,2,0.8);
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(232,160,74,0.2);
+    line-height: 1.9;
+    backdrop-filter: blur(6px);
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-box { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+
+  .tooltip {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 0.68rem;
+    color: rgba(240,208,144,0.5);
+    text-align: right;
+    line-height: 1.8;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐜 ANT COLONY <span>— Swarm Intelligence</span></h1>
+  <div class="stats-bar" id="stats">
+    <div class="stat"><div class="stat-dot" style="background:#c8723a"></div><span id="s-workers">0</span> Workers</div>
+    <div class="stat"><div class="stat-dot" style="background:#8b3a1a"></div><span id="s-soldiers">0</span> Soldiers</div>
+    <div class="stat"><div class="stat-dot" style="background:#ffd700"></div><span id="s-food">0</span> 🌿 Food</div>
+    <div class="stat"><div class="stat-dot" style="background:#66dd44"></div><span id="s-collected">0</span> Collected</div>
+    <div class="stat"><div class="stat-dot" style="background:#aaa"></div><span id="s-fps">60</span> fps</div>
+  </div>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="c"></canvas>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-box" style="background:#c8723a"></div>Worker Ant</div>
+    <div class="legend-item"><div class="legend-box" style="background:#8b3a1a"></div>Soldier Ant</div>
+    <div class="legend-item"><div class="legend-box" style="background:#ffd700"></div>Queen</div>
+    <div class="legend-item"><div class="legend-box" style="background:rgba(68,255,136,0.7)"></div>Food Pheromone</div>
+    <div class="legend-item"><div class="legend-box" style="background:rgba(68,136,255,0.7)"></div>Home Pheromone</div>
+    <div class="legend-item"><div class="legend-box" style="background:#66dd44"></div>Food Source</div>
+  </div>
+
+  <div class="tooltip">
+    Click to add food<br>
+    or choose a mode below
+  </div>
+
+  <div class="controls">
+    <button class="btn-food active" id="btn-food" onclick="setMode('food')">🌿 Add Food</button>
+    <button class="btn-pheromone" id="btn-block" onclick="setMode('block')">🪨 Obstacle</button>
+    <button class="btn-speed" onclick="changeSpeed()">⚡ Speed: <span id="spd-lbl">×1</span></button>
+    <button class="btn-pheromone" onclick="togglePheromone()">👁 Pheromones: <span id="ph-lbl">Visible</span></button>
+    <button class="btn-pause" onclick="togglePause()">⏸ <span id="pause-lbl">Pause</span></button>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  ANT COLONY SIMULATION — Stigmergy + ACO-inspired AI
+// ============================================================
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const wrap = document.getElementById('canvas-wrap');
+
+let W, H;
+function resize() {
+  W = canvas.width = wrap.clientWidth;
+  H = canvas.height = wrap.clientHeight;
+}
+resize();
+window.addEventListener('resize', () => { resize(); initGrid(); });
+
+// ---- CONFIG ----
+const CFG = {
+  CELL: 6,              // pheromone grid cell size
+  EVAPORATION: 0.994,   // pheromone evaporation rate
+  DIFFUSION: 0.08,      // how much pheromones spread
+  ANT_SPEED: 1.8,
+  ANT_SENSE: 40,        // sensing radius
+  ANT_TURN: 0.45,       // max turn per step (radians)
+  WORKERS: 120,
+  SOLDIERS: 20,
+  FOOD_AMOUNT: 80,      // food units per source
+  PHEROMONE_DEPOSIT: 12,
+  MAX_PHEROMONE: 255,
+};
+
+let mode = 'food';
+let showPheromone = true;
+let paused = false;
+let speedMult = 1;
+let speedIdx = 0;
+const speeds = [1, 2, 4];
+let collectedFood = 0;
+let frameCount = 0;
+let lastFpsTime = performance.now();
+let fps = 60;
+
+// ---- GRID ----
+let GW, GH;
+let gridFood, gridHome, gridBlock;
+
+function initGrid() {
+  GW = Math.ceil(W / CFG.CELL);
+  GH = Math.ceil(H / CFG.CELL);
+  gridFood = new Float32Array(GW * GH);
+  gridHome = new Float32Array(GW * GH);
+  gridBlock = new Uint8Array(GW * GH);
+}
+initGrid();
+
+function gi(x, y) { return y * GW + x; }
+function gx(px) { return Math.floor(px / CFG.CELL); }
+function gy(py) { return Math.floor(py / CFG.CELL); }
+
+// ---- NEST ----
+const NEST = { x: W * 0.5, y: H * 0.6, r: 28 };
+
+// ---- FOOD SOURCES ----
+let foods = [];
+function addFood(x, y) {
+  foods.push({ x, y, amount: CFG.FOOD_AMOUNT, r: 10 });
+}
+// Initial food
+function spawnInitialFood() {
+  addFood(W * 0.2, H * 0.25);
+  addFood(W * 0.75, H * 0.2);
+  addFood(W * 0.85, H * 0.7);
+  addFood(W * 0.15, H * 0.75);
+  addFood(W * 0.5, H * 0.12);
+}
+spawnInitialFood();
+
+// ---- ANTS ----
+class Ant {
+  constructor(type) {
+    this.x = NEST.x + (Math.random()-0.5)*20;
+    this.y = NEST.y + (Math.random()-0.5)*20;
+    this.angle = Math.random() * Math.PI * 2;
+    this.type = type; // 'worker' | 'soldier' | 'queen'
+    this.hasFood = false;
+    this.pheromoneTimer = 0;
+    this.wanderTimer = Math.floor(Math.random() * 60);
+    this.speed = type === 'soldier' ? CFG.ANT_SPEED * 0.85 : 
+                 type === 'queen'   ? 0 : CFG.ANT_SPEED;
+    this.size = type === 'soldier' ? 3.5 : type === 'queen' ? 5 : 2.5;
+    this.stuckTimer = 0;
+    this.lastX = this.x;
+    this.lastY = this.y;
+  }
+
+  update() {
+    if (this.type === 'queen') return;
+
+    // stuck detection
+    const dx = this.x - this.lastX, dy = this.y - this.lastY;
+    if (dx*dx + dy*dy < 0.1) this.stuckTimer++;
+    else this.stuckTimer = 0;
+    this.lastX = this.x; this.lastY = this.y;
+    if (this.stuckTimer > 20) {
+      this.angle += Math.PI * (0.5 + Math.random());
+      this.stuckTimer = 0;
+    }
+
+    // pheromone deposit
+    this.pheromoneTimer--;
+    if (this.pheromoneTimer <= 0) {
+      this.pheromoneTimer = 2;
+      const gxi = gx(this.x), gyi = gy(this.y);
+      if (gxi >= 0 && gxi < GW && gyi >= 0 && gyi < GH) {
+        const idx = gi(gxi, gyi);
+        if (this.hasFood) {
+          gridFood[idx] = Math.min(CFG.MAX_PHEROMONE, gridFood[idx] + CFG.PHEROMONE_DEPOSIT);
+        } else {
+          gridHome[idx] = Math.min(CFG.MAX_PHEROMONE, gridHome[idx] + CFG.PHEROMONE_DEPOSIT * 0.6);
+        }
+      }
+    }
+
+    // steering
+    if (this.hasFood) {
+      this.steerTowardsNest();
+    } else {
+      this.steerForFood();
+    }
+
+    // move
+    const spd = this.speed * speedMult;
+    this.x += Math.cos(this.angle) * spd;
+    this.y += Math.sin(this.angle) * spd;
+
+    // wall bounce
+    if (this.x < 5) { this.x = 5; this.angle = Math.PI - this.angle + (Math.random()-0.5)*0.5; }
+    if (this.x > W-5) { this.x = W-5; this.angle = Math.PI - this.angle + (Math.random()-0.5)*0.5; }
+    if (this.y < 5) { this.y = 5; this.angle = -this.angle + (Math.random()-0.5)*0.5; }
+    if (this.y > H-5) { this.y = H-5; this.angle = -this.angle + (Math.random()-0.5)*0.5; }
+
+    // block avoidance
+    const bxi = gx(this.x), byi = gy(this.y);
+    if (bxi >= 0 && bxi < GW && byi >= 0 && byi < GH && gridBlock[gi(bxi, byi)]) {
+      this.x -= Math.cos(this.angle) * spd * 3;
+      this.y -= Math.sin(this.angle) * spd * 3;
+      this.angle += Math.PI + (Math.random()-0.5) * 1.5;
+    }
+
+    // check food pickup
+    if (!this.hasFood && this.type === 'worker') {
+      for (let f of foods) {
+        if (f.amount > 0) {
+          const d = Math.hypot(this.x - f.x, this.y - f.y);
+          if (d < f.r + 4) {
+            this.hasFood = true;
+            f.amount--;
+            this.angle += Math.PI; // turn around
+            break;
+          }
+        }
+      }
+    }
+
+    // check nest return
+    if (this.hasFood) {
+      const d = Math.hypot(this.x - NEST.x, this.y - NEST.y);
+      if (d < NEST.r) {
+        this.hasFood = false;
+        collectedFood++;
+        this.angle += Math.PI + (Math.random()-0.5)*0.8;
+      }
+    }
+  }
+
+  steerForFood() {
+    // sample 3 directions: left, forward, right
+    const samples = this.samplePheromone(gridFood);
+    this.applySteering(samples, false);
+  }
+
+  steerTowardsNest() {
+    // head towards nest with some randomness
+    const dx = NEST.x - this.x, dy = NEST.y - this.y;
+    const targetAngle = Math.atan2(dy, dx);
+    let diff = targetAngle - this.angle;
+    while (diff > Math.PI) diff -= Math.PI*2;
+    while (diff < -Math.PI) diff += Math.PI*2;
+    const turn = Math.min(CFG.ANT_TURN * 1.5, Math.abs(diff)) * Math.sign(diff);
+    this.angle += turn + (Math.random()-0.5) * 0.3;
+  }
+
+  samplePheromone(grid) {
+    const sensorDist = CFG.ANT_SENSE;
+    const sensorAngle = 0.6;
+    const dirs = [-sensorAngle, 0, sensorAngle];
+    return dirs.map(da => {
+      const a = this.angle + da;
+      const sx = this.x + Math.cos(a) * sensorDist;
+      const sy = this.y + Math.sin(a) * sensorDist;
+      const sgx = Math.round(gx(sx)), sgy = Math.round(gy(sy));
+      if (sgx < 0 || sgx >= GW || sgy < 0 || sgy >= GH) return 0;
+      if (gridBlock[gi(sgx, sgy)]) return -999;
+      return grid[gi(sgx, sgy)];
+    });
+  }
+
+  applySteering(samples, goingHome) {
+    const [L, F, R] = samples;
+    const maxPh = Math.max(L, F, R, 0);
+
+    if (maxPh < 1) {
+      // random walk with slight forward bias
+      this.angle += (Math.random()-0.5) * CFG.ANT_TURN * 2;
+      return;
+    }
+
+    const turnAmt = CFG.ANT_TURN * (0.5 + Math.random() * 0.5);
+
+    if (F >= L && F >= R) {
+      // straight ahead
+      this.angle += (Math.random()-0.5) * 0.15;
+    } else if (L > R) {
+      this.angle -= turnAmt;
+    } else if (R > L) {
+      this.angle += turnAmt;
+    } else {
+      this.angle += (Math.random()-0.5) * CFG.ANT_TURN;
+    }
+  }
+}
+
+// ---- CREATE COLONY ----
+let ants = [];
+function spawnColony() {
+  for (let i = 0; i < CFG.WORKERS; i++) ants.push(new Ant('worker'));
+  for (let i = 0; i < CFG.SOLDIERS; i++) ants.push(new Ant('soldier'));
+  ants.push(new Ant('queen'));
+}
+spawnColony();
+
+// ---- PHEROMONE DIFFUSION ----
+function diffuseGrid(grid) {
+  const tmp = new Float32Array(GW * GH);
+  for (let y = 1; y < GH-1; y++) {
+    for (let x = 1; x < GW-1; x++) {
+      const i = gi(x,y);
+      if (gridBlock[i]) continue;
+      const center = grid[i];
+      const neighbors = grid[gi(x-1,y)] + grid[gi(x+1,y)] + grid[gi(x,y-1)] + grid[gi(x,y+1)];
+      tmp[i] = center * (1 - CFG.DIFFUSION) + neighbors * (CFG.DIFFUSION / 4);
+      tmp[i] *= CFG.EVAPORATION;
+    }
+  }
+  grid.set(tmp);
+}
+
+// ---- HOME PHEROMONE SEED (around nest) ----
+function seedNestPheromone() {
+  const nx = gx(NEST.x), ny = gy(NEST.y);
+  const nr = Math.ceil(NEST.r / CFG.CELL);
+  for (let dy = -nr; dy <= nr; dy++) {
+    for (let dx = -nr; dx <= nr; dx++) {
+      const cx = nx+dx, cy = ny+dy;
+      if (cx>=0 && cx<GW && cy>=0 && cy<GH) {
+        const d = Math.sqrt(dx*dx+dy*dy);
+        gridHome[gi(cx,cy)] = Math.max(gridHome[gi(cx,cy)], (1-d/nr) * CFG.MAX_PHEROMONE * 0.8);
+      }
+    }
+  }
+}
+seedNestPheromone();
+
+// ---- RENDER ----
+function renderPheromones() {
+  const imgData = ctx.createImageData(W, H);
+  const data = imgData.data;
+  for (let gy2 = 0; gy2 < GH; gy2++) {
+    for (let gx2 = 0; gx2 < GW; gx2++) {
+      const idx = gi(gx2, gy2);
+      const fPh = Math.min(255, gridFood[idx]);
+      const hPh = Math.min(255, gridHome[idx]);
+      const isBlk = gridBlock[idx];
+      
+      for (let dy = 0; dy < CFG.CELL; dy++) {
+        for (let dx = 0; dx < CFG.CELL; dx++) {
+          const px = gx2 * CFG.CELL + dx;
+          const py = gy2 * CFG.CELL + dy;
+          if (px >= W || py >= H) continue;
+          const pi = (py * W + px) * 4;
+          
+          if (isBlk) {
+            data[pi] = 40; data[pi+1] = 25; data[pi+2] = 15; data[pi+3] = 255;
+          } else {
+            // base soil color
+            data[pi]   = 26;
+            data[pi+1] = 15;
+            data[pi+2] = 8;
+            data[pi+3] = 255;
+            // food pheromone (green tint)
+            if (fPh > 2) {
+              data[pi]   = Math.min(255, data[pi]   + fPh * 0.08);
+              data[pi+1] = Math.min(255, data[pi+1] + fPh * 0.5);
+              data[pi+2] = Math.min(255, data[pi+2] + fPh * 0.15);
+            }
+            // home pheromone (blue tint)
+            if (hPh > 2) {
+              data[pi]   = Math.min(255, data[pi]   + hPh * 0.05);
+              data[pi+1] = Math.min(255, data[pi+1] + hPh * 0.08);
+              data[pi+2] = Math.min(255, data[pi+2] + hPh * 0.45);
+            }
+          }
+        }
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function renderNest() {
+  // tunnel texture
+  const grad = ctx.createRadialGradient(NEST.x, NEST.y, 0, NEST.x, NEST.y, NEST.r * 2);
+  grad.addColorStop(0, 'rgba(90,50,20,0.95)');
+  grad.addColorStop(0.5, 'rgba(60,35,15,0.7)');
+  grad.addColorStop(1, 'transparent');
+  ctx.beginPath();
+  ctx.arc(NEST.x, NEST.y, NEST.r * 2, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(NEST.x, NEST.y, NEST.r, 0, Math.PI * 2);
+  ctx.fillStyle = '#4a2a10';
+  ctx.fill();
+  ctx.strokeStyle = '#8b5a2b';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,200,100,0.7)';
+  ctx.font = 'bold 11px Tajawal';
+  ctx.textAlign = 'center';
+  ctx.fillText('NEST', NEST.x, NEST.y + 4);
+}
+
+function renderFoods() {
+  for (const f of foods) {
+    if (f.amount <= 0) continue;
+    const ratio = f.amount / CFG.FOOD_AMOUNT;
+    const r = f.r * (0.3 + ratio * 0.7);
+    const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, r * 1.5);
+    grad.addColorStop(0, `rgba(100,255,80,${0.4 + ratio*0.4})`);
+    grad.addColorStop(1, 'transparent');
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, r * 1.5, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(70,200,50,${0.6+ratio*0.4})`;
+    ctx.fill();
+
+    // amount bar
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(f.x - 12, f.y + r + 4, 24, 4);
+    ctx.fillStyle = `rgb(${Math.floor(100+155*(1-ratio))},${Math.floor(200*ratio)},50)`;
+    ctx.fillRect(f.x - 12, f.y + r + 4, 24 * ratio, 4);
+  }
+}
+
+function renderAnts() {
+  for (const ant of ants) {
+    const color = ant.type === 'queen'   ? '#ffd700' :
+                  ant.type === 'soldier' ? '#8b3a1a' : '#c8723a';
+
+    ctx.save();
+    ctx.translate(ant.x, ant.y);
+    ctx.rotate(ant.angle);
+
+    if (ant.type === 'queen') {
+      // glowing queen
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 7, 4.5, 0, 0, Math.PI*2);
+      ctx.fillStyle = '#ffd700';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(6, 0, 4, 3, 0, 0, Math.PI*2);
+      ctx.fillStyle = '#ffaa00';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      const sz = ant.size;
+      // abdomen
+      ctx.beginPath();
+      ctx.ellipse(0, 0, sz*1.2, sz*0.8, 0, 0, Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      // thorax
+      ctx.beginPath();
+      ctx.ellipse(sz*1.5, 0, sz*0.8, sz*0.6, 0, 0, Math.PI*2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      // head
+      ctx.beginPath();
+      ctx.arc(sz*2.5, 0, sz*0.65, 0, Math.PI*2);
+      ctx.fillStyle = ant.type==='soldier'?'#6b2a10':'#a85028';
+      ctx.fill();
+      // antennae
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(sz*2.8, -sz*0.3);
+      ctx.lineTo(sz*4, -sz*1.2);
+      ctx.moveTo(sz*2.8, sz*0.3);
+      ctx.lineTo(sz*4, sz*1.2);
+      ctx.stroke();
+      // legs
+      ctx.lineWidth = 0.7;
+      const legOff = [0.2, 0.8, 1.4];
+      legOff.forEach(lo => {
+        ctx.beginPath(); ctx.moveTo(lo*sz, -sz*0.6); ctx.lineTo((lo-0.5)*sz, -sz*1.8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(lo*sz, sz*0.6); ctx.lineTo((lo-0.5)*sz, sz*1.8); ctx.stroke();
+      });
+
+      if (ant.hasFood) {
+        ctx.shadowColor = '#66ff44';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(-sz*0.5, 0, sz*0.9, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(100,230,60,0.9)';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
+    ctx.restore();
+  }
+}
+
+// ---- MAIN LOOP ----
+let lastTime = 0;
+function loop(t) {
+  requestAnimationFrame(loop);
+  if (paused) return;
+
+  // FPS
+  frameCount++;
+  if (t - lastFpsTime >= 500) {
+    fps = Math.round(frameCount * 1000 / (t - lastFpsTime));
+    frameCount = 0; lastFpsTime = t;
+    document.getElementById('s-fps').textContent = fps;
+  }
+
+  const steps = speedMult;
+  for (let s = 0; s < steps; s++) {
+    if (s % 3 === 0) diffuseGrid(gridFood);
+    if (s % 3 === 0) diffuseGrid(gridHome);
+    seedNestPheromone();
+    for (const ant of ants) ant.update();
+  }
+
+  // Render
+  if (showPheromone) {
+    renderPheromones();
+  } else {
+    ctx.fillStyle = '#1a0f08';
+    ctx.fillRect(0, 0, W, H);
+    // draw blocks only
+    ctx.fillStyle = '#2a1808';
+    for (let gy2=0;gy2<GH;gy2++) for (let gx2=0;gx2<GW;gx2++) {
+      if (gridBlock[gi(gx2,gy2)]) ctx.fillRect(gx2*CFG.CELL, gy2*CFG.CELL, CFG.CELL, CFG.CELL);
+    }
+  }
+
+  renderNest();
+  renderFoods();
+  renderAnts();
+
+  // Update stats
+  const workers = ants.filter(a=>a.type==='worker').length;
+  const soldiers = ants.filter(a=>a.type==='soldier').length;
+  const totalFood = foods.reduce((s,f)=>s+f.amount,0);
+  document.getElementById('s-workers').textContent = workers;
+  document.getElementById('s-soldiers').textContent = soldiers;
+  document.getElementById('s-food').textContent = totalFood;
+  document.getElementById('s-collected').textContent = collectedFood;
+}
+requestAnimationFrame(loop);
+
+// ---- INTERACTION ----
+let interacting = false;
+canvas.addEventListener('mousedown', e => { interacting = true; handleClick(e); });
+canvas.addEventListener('mousemove', e => { if (interacting) handleClick(e); });
+canvas.addEventListener('mouseup', () => interacting = false);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); interacting=true; handleTouch(e); }, {passive:false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); handleTouch(e); }, {passive:false});
+canvas.addEventListener('touchend', () => interacting = false);
+
+function handleTouch(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  handleAction((t.clientX-r.left)*(W/r.width), (t.clientY-r.top)*(H/r.height));
+}
+function handleClick(e) {
+  const r = canvas.getBoundingClientRect();
+  handleAction((e.clientX-r.left)*(W/r.width), (e.clientY-r.top)*(H/r.height));
+}
+function handleAction(x, y) {
+  if (mode === 'food') {
+    // check not too close to existing food
+    for (const f of foods) {
+      if (Math.hypot(x-f.x, y-f.y) < 20) { f.amount = Math.min(CFG.FOOD_AMOUNT, f.amount+10); return; }
+    }
+    addFood(x, y);
+  } else if (mode === 'block') {
+    const bx = gx(x), by = gy(y);
+    for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+      const cx=bx+dx, cy=by+dy;
+      if (cx>=0&&cx<GW&&cy>=0&&cy<GH) gridBlock[gi(cx,cy)]=1;
+    }
+  }
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-food').classList.toggle('active', m==='food');
+  document.getElementById('btn-block').classList.toggle('active', m==='block');
+}
+
+function changeSpeed() {
+  speedIdx = (speedIdx+1) % speeds.length;
+  speedMult = speeds[speedIdx];
+  document.getElementById('spd-lbl').textContent = '×'+speedMult;
+}
+
+function togglePheromone() {
+  showPheromone = !showPheromone;
+  document.getElementById('ph-lbl').textContent = showPheromone ? 'Visible' : 'Hidden';
+}
+
+function togglePause() {
+  paused = !paused;
+  document.getElementById('pause-lbl').textContent = paused ? 'Resume' : 'Pause';
+}
+</script>
+</body>
+</html>
